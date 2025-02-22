@@ -4,10 +4,10 @@ import os
 import openai
 import threading
 import time
-import wave
 from dotenv import load_dotenv
 from pynput import keyboard
 from pynput.keyboard import Controller
+from gramformer import Gramformer
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,6 +34,9 @@ stream = None
 frames = []
 recording_thread = None
 keyboard_controller = Controller()  # 💻 Keyboard controller for typing
+
+# 📌 Initialize Gramformer (for local punctuation & grammar correction)
+gf = Gramformer(1, use_gpu=False)  # 1 = Grammar correction mode
 
 def record_audio():
     """Captures audio chunks while recording is active."""
@@ -85,12 +88,11 @@ def stop_recording():
     return OUTPUT_FILENAME
 
 def transcribe_audio(audio_file):
-    # Ensure the file exists and isn't empty
+    """Transcribes audio using OpenAI Whisper."""
     if not os.path.exists(audio_file) or os.path.getsize(audio_file) == 0:
         print("⚠️ No valid audio file found.")
         return ""
 
-    # Check if the audio file is too short by measuring duration
     try:
         with wave.open(audio_file, "rb") as wf:
             duration = wf.getnframes() / float(wf.getframerate())
@@ -101,19 +103,23 @@ def transcribe_audio(audio_file):
         print(f"⚠️ Error reading audio file: {e}")
         return ""
 
-    # Proceed with transcription
     with open(audio_file, "rb") as f:
         response = openai.Audio.transcribe("whisper-1", f)
 
     return response["text"]
 
 def improve_punctuation(text):
-    """Uses ChatGPT to add proper punctuation to the transcribed text."""
-    # If text already has punctuation, assume it's correct
-    if any(p in text for p in ['.', '!', '?', ',']):
-        return text
+    """Uses Gramformer for punctuation improvement (GPT is disabled)."""
+    if not text.strip():
+        return text  # Skip empty text
+    
+    print("✨ Improving punctuation (using Gramformer)...")
+    corrected = list(gf.correct(text, max_candidates=1))
+    return corrected[0] if corrected else text
 
-    print("✨ Improving punctuation...")
+    # 🛑 GPT-4 Punctuation (DISABLED, but can be re-enabled if needed)
+    """
+    print("✨ Improving punctuation (using GPT-4)...")
     chat_response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
@@ -121,13 +127,13 @@ def improve_punctuation(text):
             {"role": "user", "content": f"Please punctuate the following transcription correctly:\n\n{text}"}
         ]
     )
-
     return chat_response["choices"][0]["message"]["content"]
+    """
 
 def type_text(text):
     """Simulates keyboard typing of transcribed text into any application."""
     print(f"⌨️ Typing: {text}")
-    keyboard_controller.type(text)  
+    keyboard_controller.type(text)
 
 def on_press(key):
     """Handles key press event to start recording."""
@@ -145,9 +151,9 @@ def on_release(key):
             text = transcribe_audio(audio_file)
             print(f"📝 Transcribed (Raw): {text}")
 
-            # Improve punctuation if necessary
-            text = improve_punctuation(text)
-            print(f"✍️ Final Text: {text}")
+            # Improve punctuation with Gramformer
+            # text = improve_punctuation(text)
+            # print(f"✍️ Final Text: {text}")
 
             type_text(text)  # 💻 Type transcribed text into active window
 
