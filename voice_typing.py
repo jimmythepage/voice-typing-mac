@@ -122,8 +122,8 @@ def improve_punctuation(text):
     chat_response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are an assistant that adds proper punctuation to transcriptions and improves them."},
-            {"role": "user", "content": f"Please punctuate and improve the following transcription correctly:\n\n{text}"}
+            {"role": "system", "content": "You are an assistant that adds proper punctuation to transcriptions."},
+            {"role": "user", "content": f"Please punctuate the following transcription correctly:\n\n{text}"}
         ]
     )
     
